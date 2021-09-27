@@ -9,7 +9,7 @@ use solana_program:: {
     program::invoke,
 }
 
-use crate::{instruction::NftInstruction};
+use crate::{instruction::NftInstruction, error::NftError, state::Trade, state::Item};
 
 pub struct Processor;
 impl Processor {
