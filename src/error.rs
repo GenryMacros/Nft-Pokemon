@@ -5,6 +5,9 @@ use solana_program::program_error::ProgramError;
 #[derive(Error, Debug, Copy, Clone)]
 pub enum NftError {
 
+    #[error("Not rent exempt")]
+    NotRentExempt,
+
     #[error("Invalid Instruction")]
     InvalidInstruction,
 
@@ -16,6 +19,10 @@ pub enum NftError {
 
     #[error("Invalid trade")]
     InvalidTrade,
+
+    #[error("Not enough lamports")]
+    NotEnoughLamports,
+
 }
 
 impl From<NftError> for ProgramError {

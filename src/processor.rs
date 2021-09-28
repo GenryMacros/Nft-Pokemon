@@ -19,7 +19,7 @@ impl Processor {
         instruction_data: &[u8]
     ) -> ProgramResult
     {
-        let instruction = EscrowInstruction::unpack(instruction_data)?;
+        let instruction = NftInstruction::unpack(instruction_data)?;
 
         match instruction {
             NftInstruction::AddItem {params} => {
@@ -27,6 +27,9 @@ impl Processor {
             },
             NftInstruction::CreateTrade { price } => {
                 Self::process_create_trade(accounts, price, program_id);
+            },
+            NftInstruction::BuyItem => {
+                Self::process_buy_item(accounts);
             }
         }
     }
@@ -42,12 +45,12 @@ impl Processor {
         if !initializer.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
-
+        
         let mut trade_account = next_account_info(account_info_iter)?;
         let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
-
+        
         if !rent.is_exempt(trade_account.lamports(), trade_account.data_len()) {
-            return Err(EscrowError::NotRentExempt.into());
+            return Err(NftError::NotRentExempt.into());
         }
 
         let mut trade_info = Escrow::unpack_unchecked(&trade_account.data.borrow())?;
@@ -59,10 +62,6 @@ impl Processor {
         trade_info.start_price = price;
 
         Trade::pack(trade_info, &mut trade_account.data.borrow_mut())?;
-
-        ///TODO
-        ///transfer ownership of trade_account to program
-
         Ok(())
     }
 
@@ -77,7 +76,7 @@ impl Processor {
         if !initializer.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
-
+        
         let mut trade_account = next_account_info(account_info_iter)?;
         let mut trade_rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
         let mut item_account = next_account_info(account_info_iter)?;
@@ -85,15 +84,18 @@ impl Processor {
 
         if !trade_rent.is_exempt(trade_account.lamports(), trade_account.data_len()) ||
            !item_rent.is_exempt(item_account.lamports(), item_account.data_len()) {
-            return Err(EscrowError::NotRentExempt.into());
+            return Err(NftError::NotRentExempt.into());
         }
-        
         let mut item_info = Item::unpack_unchecked(&item_account.data.borrow())?;
         let mut trade_info = Trade::unpack_unchecked(&trade_account.data.borrow())?;
+
         if trade_info.is_initialized() || item_info.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
         if trade_info.initializer_pubkey != *initializer.key {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        if item_info.owner != *initializer.key {
             return Err(ProgramError::InvalidAccountData);
         }
 
@@ -136,11 +138,9 @@ impl Processor {
 
         Ok(())
     }
-
+    
     pub fn process_buy_item( 
         accounts: &[AccountInfo],
-        params: ItemParams,
-        program_id: &Pubkey,
     ) -> ProgramResult {
 
         let account_info_iter = &mut accounts.iter();
@@ -168,9 +168,23 @@ impl Processor {
             return Err(NftError::InvalidInstruction.into());
         }
 
+        let funded_account = next_account_info(account_info_iter)?;
+        let currentPrice = (1 / trade_info.amount) + trade_info.start_price;
+        if *funded_account.lamports != currentPrice {
+            return Err(NftError::NotEnoughLamports.into());
+        }
 
-        //TODO 
-        //Check sended lamports amount and transfer them to account creator 
+        item_info.owner = *taker.key;
+        trade_info.amount -= 1;
+
+        Item::pack(item_info, &mut item_account.data.borrow_mut())?;
+        Trade::pack(trade_info, &mut trade_account.data.borrow_mut())?;
+
+        **trade_account.lamports.borrow_mut() = trade_account.lamports()
+            .checked_add(funded_account.lamports())
+            .ok_or(EscrowError::AmountOverflow)?;
+        **funded_account.lamports.borrow_mut() = 0;
         
+        Ok(())
     }
 }

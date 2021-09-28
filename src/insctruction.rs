@@ -32,6 +32,11 @@ pub enum NftInstruction {
     AddItem {
         params: ItemParams,
     },
+
+///0. [Signer] Buyer
+///1. [writable] Trade account
+///2. [writable] Item account
+///3. [writable] Funded with sol account 
     BuyItem,
 }
 
@@ -56,7 +61,8 @@ impl NftInstruction {
             },
             1 => Self::CreateTrade {
                     start_price: Self::unpack_amount(rest, 0, 8),
-            }
+            },
+            2 => Self::BuyItem 
             _ => return Err(InvalidInstruction.into()),
         })
     }

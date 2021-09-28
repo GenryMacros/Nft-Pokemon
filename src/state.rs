@@ -183,6 +183,6 @@ impl Pack for Item {
         *hat_dst = hat_dst.to_le_bytes();
         *emotion_dst = emotion_dst.to_le_bytes();
         *eyes_dst = eyes_dst.to_le_bytes();
-         owner_dst.copy_from_slice(owner.as_ref());
+        owner_dst.copy_from_slice(owner.as_ref());
     }
 }
