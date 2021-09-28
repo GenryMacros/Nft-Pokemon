@@ -31,7 +31,7 @@ impl IsInitialized for Trade{
 impl Pack for Trade {
     const LEN: usize = 49;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src = array_ref![src, 0, Escrow::LEN];
+        let src = array_ref![src, 0, Trade::LEN];
         let (
             is_initialized,
             is_locked,
@@ -106,7 +106,7 @@ impl IsInitialized for Item{
 impl Pack for Item {
     const LEN: usize = 153;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src = array_ref![src, 0, Escrow::LEN];
+        let src = array_ref![src, 0, Item::LEN];
         let (
             is_initialized,
             body_r,

@@ -53,7 +53,7 @@ impl Processor {
             return Err(NftError::NotRentExempt.into());
         }
 
-        let mut trade_info = Escrow::unpack_unchecked(&trade_account.data.borrow())?;
+        let mut trade_info = Trade::unpack_unchecked(&trade_account.data.borrow())?;
         if trade_info.is_initialized() {
             return Err(ProgramError::AccountAlreadyInitialized);
         }
@@ -182,7 +182,7 @@ impl Processor {
 
         **trade_account.lamports.borrow_mut() = trade_account.lamports()
             .checked_add(funded_account.lamports())
-            .ok_or(EscrowError::AmountOverflow)?;
+            .ok_or(NftError::AmountOverflow)?;
         **funded_account.lamports.borrow_mut() = 0;
         
         Ok(())

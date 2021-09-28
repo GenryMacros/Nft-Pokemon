@@ -23,6 +23,9 @@ pub enum NftError {
     #[error("Not enough lamports")]
     NotEnoughLamports,
 
+    #[error("Amount overflow")]
+    AmountOverflow,
+
 }
 
 impl From<NftError> for ProgramError {
