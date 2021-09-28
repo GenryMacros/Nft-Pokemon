@@ -1,4 +1,4 @@
-use thiserror::Error
+use thiserror::Error;
 
 use solana_program::program_error::ProgramError;
 
@@ -26,10 +26,13 @@ pub enum NftError {
     #[error("Amount overflow")]
     AmountOverflow,
 
+    #[error("Amount overflow")]
+    TradeIsClosed,
+
 }
 
 impl From<NftError> for ProgramError {
     fn from(e: NftError) -> Self {
-        ProgramError::Custom(e as u32);
+        ProgramError::Custom(e as u32)
     }
 }

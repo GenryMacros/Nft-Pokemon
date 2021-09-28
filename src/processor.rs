@@ -2,14 +2,13 @@ use solana_program:: {
     account_info::{ next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     program_error::ProgramError,
-    msg,
     pubkey::Pubkey,
-    program_pack::{Pack, isInitialized},
+    program_pack::{Pack, IsInitialized},
     sysvar::{rent::Rent, Sysvar},
     program::invoke,
-}
+};
 
-use crate::{instruction::NftInstruction, error::NftError, state::Trade, state::Item};
+use crate::{instruction::NftInstruction, instruction::ItemParams, error::NftError, state::Trade, state::Item};
 
 pub struct Processor;
 impl Processor {
@@ -22,14 +21,14 @@ impl Processor {
         let instruction = NftInstruction::unpack(instruction_data)?;
 
         match instruction {
-            NftInstruction::AddItem {params} => {
-                Self::process_add_item(accounts, params, program_id);
+            NftInstruction::AddItem { params } => {
+                Self::process_add_item(accounts, params)
             },
-            NftInstruction::CreateTrade { price } => {
-                Self::process_create_trade(accounts, price, program_id);
+            NftInstruction::CreateTrade { start_price } => {
+                Self::process_create_trade(accounts, start_price)
             },
             NftInstruction::BuyItem => {
-                Self::process_buy_item(accounts);
+                Self::process_buy_item(accounts)
             }
         }
     }
@@ -37,7 +36,6 @@ impl Processor {
     pub fn process_create_trade(
         accounts: &[AccountInfo],
         price: u64,
-        program_id: &Pubkey,
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let initializer = next_account_info(account_info_iter)?;
@@ -46,7 +44,7 @@ impl Processor {
             return Err(ProgramError::MissingRequiredSignature);
         }
         
-        let mut trade_account = next_account_info(account_info_iter)?;
+        let trade_account = next_account_info(account_info_iter)?;
         let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
         
         if !rent.is_exempt(trade_account.lamports(), trade_account.data_len()) {
@@ -59,7 +57,7 @@ impl Processor {
         }
 
         trade_info.is_initialized = true;
-        trade_info.start_price = price;
+        trade_info.price = price;
 
         Trade::pack(trade_info, &mut trade_account.data.borrow_mut())?;
         Ok(())
@@ -68,7 +66,6 @@ impl Processor {
     pub fn process_add_item(
         accounts: &[AccountInfo],
         params: ItemParams,
-        program_id: &Pubkey,
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let initializer = next_account_info(account_info_iter)?;
@@ -77,10 +74,10 @@ impl Processor {
             return Err(ProgramError::MissingRequiredSignature);
         }
         
-        let mut trade_account = next_account_info(account_info_iter)?;
-        let mut trade_rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
-        let mut item_account = next_account_info(account_info_iter)?;
-        let mut item_rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
+        let trade_account = next_account_info(account_info_iter)?;
+        let trade_rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
+        let item_account = next_account_info(account_info_iter)?;
+        let item_rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
 
         if !trade_rent.is_exempt(trade_account.lamports(), trade_account.data_len()) ||
            !item_rent.is_exempt(item_account.lamports(), item_account.data_len()) {
@@ -94,6 +91,9 @@ impl Processor {
         }
         if trade_info.initializer_pubkey != *initializer.key {
             return Err(ProgramError::InvalidAccountData);
+        }
+        if trade_info.is_locked() {
+            return Err(NftError::TradeIsClosed.into());
         }
         if item_info.owner != *initializer.key {
             return Err(ProgramError::InvalidAccountData);
@@ -155,7 +155,7 @@ impl Processor {
         let item_account = next_account_info(account_info_iter)?;
         let mut item_info = Item::unpack_unchecked(&item_account.data.borrow())?;
         
-        if !trade_info.is_locked || !trade_info.is_initialized {
+        if !trade_info.is_locked() || !trade_info.is_initialized {
             return Err(NftError::InvalidTrade.into());
         }
         if trade_info.amount == 0 {
@@ -169,8 +169,8 @@ impl Processor {
         }
 
         let funded_account = next_account_info(account_info_iter)?;
-        let currentPrice = (1 / trade_info.amount) + trade_info.start_price;
-        if *funded_account.lamports != currentPrice {
+        let current_price = (1 / trade_info.amount) + trade_info.price;
+        if **trade_account.lamports.borrow_mut() != current_price {
             return Err(NftError::NotEnoughLamports.into());
         }
 
